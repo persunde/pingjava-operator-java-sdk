@@ -51,7 +51,12 @@ public class CustomServiceController implements ResourceController<CustomService
         serviceSpec.setPorts(Collections.singletonList(servicePort));
 
         CustomServiceStatus status = new CustomServiceStatus();
-        status.setName(resource.getStatus().getName());
+        CustomServiceStatus oldStatus = resource.getStatus();
+        if (oldStatus != null) {
+            status.setName(resource.getStatus().getName());
+        } else {
+            status.setName("status");
+        }
         status.setAreWeGood("Yes!");
         resource.setStatus(status);
 
@@ -74,6 +79,7 @@ public class CustomServiceController implements ResourceController<CustomService
         } catch (IOException e) {
             e.printStackTrace();
             log.error("createOrReplaceDeployment failed", e);
+            throw new RuntimeException(e);
         }
         return UpdateControl.updateCustomResource(resource);
     }
