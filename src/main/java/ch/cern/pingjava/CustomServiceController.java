@@ -6,10 +6,13 @@ import com.github.containersolutions.operator.api.ResourceController;
 import com.github.containersolutions.operator.api.UpdateControl;
 import io.fabric8.kubernetes.api.model.ServicePort;
 import io.fabric8.kubernetes.api.model.ServiceSpec;
+import io.fabric8.kubernetes.api.model.apps.Deployment;
 import io.fabric8.kubernetes.client.KubernetesClient;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.FileInputStream;
+import java.io.FileNotFoundException;
 import java.util.Arrays;
 import java.util.Collections;
 
@@ -59,6 +62,19 @@ public class CustomServiceController implements ResourceController<CustomService
                 .endMetadata()
                 .withSpec(serviceSpec)
                 .done();
+        try {
+            createOrReplaceDeployment();
+        } catch (FileNotFoundException e) {
+            e.printStackTrace();
+            log.error("createOrReplaceDeployment failed", e);
+        }
         return UpdateControl.updateCustomResource(resource);
+    }
+
+    public void createOrReplaceDeployment() throws FileNotFoundException {
+        String deploymentYamlPath = "stresstest-deploy.yaml";
+        Deployment aDeployment = kubernetesClient.apps().deployments().load(new FileInputStream(deploymentYamlPath)).get();
+        Deployment createdDeployment = kubernetesClient.apps().deployments().inNamespace(aDeployment.getMetadata().getNamespace()).createOrReplace(aDeployment);
+        log.info("Created deployment: {}", deploymentYamlPath);
     }
 }
