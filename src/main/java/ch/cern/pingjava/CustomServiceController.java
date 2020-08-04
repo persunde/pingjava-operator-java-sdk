@@ -13,6 +13,7 @@ import org.slf4j.LoggerFactory;
 
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
+import java.io.InputStream;
 import java.util.Arrays;
 import java.util.Collections;
 
@@ -73,7 +74,10 @@ public class CustomServiceController implements ResourceController<CustomService
 
     public void createOrReplaceDeployment() throws FileNotFoundException {
         String deploymentYamlPath = "stresstest-deploy.yaml";
-        Deployment aDeployment = kubernetesClient.apps().deployments().load(new FileInputStream(deploymentYamlPath)).get();
+        ClassLoader classloader = Thread.currentThread().getContextClassLoader();
+        InputStream yamlInputStream = classloader.getResourceAsStream(deploymentYamlPath);
+
+        Deployment aDeployment = kubernetesClient.apps().deployments().load(yamlInputStream).get();
         Deployment createdDeployment = kubernetesClient.apps().deployments().inNamespace(aDeployment.getMetadata().getNamespace()).createOrReplace(aDeployment);
         log.info("Created deployment: {}", deploymentYamlPath);
     }
