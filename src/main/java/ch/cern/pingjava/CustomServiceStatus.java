@@ -1,7 +1,5 @@
 package ch.cern.pingjava;
 
-import io.fabric8.kubernetes.api.model.ServiceStatus;
-
 public class CustomServiceStatus {
 
     private String areWeGood;

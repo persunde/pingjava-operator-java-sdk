@@ -56,7 +56,9 @@ public class CustomServiceController implements ResourceController<CustomService
         serviceSpec.setPorts(Collections.singletonList(servicePort));
 
         CustomServiceStatus status = new CustomServiceStatus();
+        status.setName(resource.getStatus().getName());
         status.setAreWeGood("Yes!");
+        resource.setStatus(status);
 
         kubernetesClient.services().inNamespace(resource.getMetadata().getNamespace()).createOrReplaceWithNew()
                 .withNewMetadata()
