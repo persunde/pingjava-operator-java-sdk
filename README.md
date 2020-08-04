@@ -9,14 +9,28 @@ make docker
 ```
 
 ## Run
-First apply the CustomResourceDefinition to the K8S-Cluster. It is needed before you run the Operator!
+First apply the CustomResourceDefinition and the CustomResource to the K8S-Cluster. It is needed before you run the Operator!
 This is only needed to be done once.
 ```bash
 kubectl apply -f crd/crd.yaml
+kubectl apply -f crd/CustomService.yaml
 ```
 
-Then you can deploy the Operator: 
+Now you can deploy the Operator. If you make any changes to the Operator, build and run this command again:
 ```bash
 kubectl apply -f deployment/deploy_operator.yaml
 ```
 
+To delete the Operator and the deployment created by the Operator:
+```bash
+kubectl delete -f deployment/deploy_operator.yaml
+kubectl delete deployment stresstest-ping
+```
+
+
+## Notes
+You can edit the code and change the retry interval in *Runner.java*. 
+You can set the maximum retry-attempts and the milliseconds between each interval (aka ms between each call to the Controllers function *createOrUpdateResource()*).
+```java
+new GenericRetry().withLinearRetry().setMaxAttempts(maxAttempts).setInitialInterval(milliseconds);
+```

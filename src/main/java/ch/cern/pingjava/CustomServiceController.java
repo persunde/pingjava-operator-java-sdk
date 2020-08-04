@@ -60,6 +60,13 @@ public class CustomServiceController implements ResourceController<CustomService
         status.setAreWeGood("Yes!");
         resource.setStatus(status);
 
+        /*
+        * TODO: call a K8S-Service for the Ping server and calculate the latency. Then scale up or down
+        */
+
+        /*
+        * TODO: remove this service, no need
+        */
         kubernetesClient.services().inNamespace(resource.getMetadata().getNamespace()).createOrReplaceWithNew()
                 .withNewMetadata()
                 .withName(resource.getSpec().getName())
@@ -76,7 +83,7 @@ public class CustomServiceController implements ResourceController<CustomService
         return UpdateControl.updateCustomResource(resource);
     }
 
-    public void createOrReplaceDeployment() throws IOException {
+    private void createOrReplaceDeployment() throws IOException {
         String deploymentYamlPath = "stresstest-deploy.yaml";
         try (InputStream yamlInputStream = getClass().getResourceAsStream(deploymentYamlPath)) {
             Deployment aDeployment = kubernetesClient.apps().deployments().load(yamlInputStream).get();
