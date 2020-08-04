@@ -1,3 +1,5 @@
+all: install docker
+
 install:
 	mvn install
 docker:
