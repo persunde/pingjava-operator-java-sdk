@@ -6,18 +6,13 @@ import com.github.containersolutions.operator.api.ResourceController;
 import com.github.containersolutions.operator.api.UpdateControl;
 import io.fabric8.kubernetes.api.model.ServicePort;
 import io.fabric8.kubernetes.api.model.ServiceSpec;
-import io.fabric8.kubernetes.api.model.ServiceStatus;
-import io.fabric8.kubernetes.api.model.ServiceStatusBuilder;
 import io.fabric8.kubernetes.api.model.apps.Deployment;
 import io.fabric8.kubernetes.client.KubernetesClient;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.FileInputStream;
-import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
-import java.util.Arrays;
 import java.util.Collections;
 
 /**

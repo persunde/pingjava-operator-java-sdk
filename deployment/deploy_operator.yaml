@@ -16,10 +16,19 @@ spec:
         control-plane: pingjava-manager
     spec:
       containers:
-        - command:
-            - /manager
-          args:
-            - --enable-leader-election
+        - name: operator
           image: persundecern/pingjava-operator:latest
-          name: manager
+          imagePullPolicy: Always
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 1
+            timeoutSeconds: 1
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 30
+            timeoutSeconds: 1
       terminationGracePeriodSeconds: 10

@@ -1,6 +1,5 @@
 package ch.cern.pingjava;
 
-import io.fabric8.kubernetes.api.model.ServiceStatus;
 import io.fabric8.kubernetes.client.CustomResource;
 
 public class CustomService extends CustomResource {
