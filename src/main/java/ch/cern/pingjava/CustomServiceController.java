@@ -13,6 +13,7 @@ import org.slf4j.LoggerFactory;
 
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
+import java.io.IOException;
 import java.io.InputStream;
 import java.util.Arrays;
 import java.util.Collections;
@@ -65,20 +66,21 @@ public class CustomServiceController implements ResourceController<CustomService
                 .done();
         try {
             createOrReplaceDeployment();
-        } catch (FileNotFoundException e) {
+        } catch (IOException e) {
             e.printStackTrace();
             log.error("createOrReplaceDeployment failed", e);
         }
         return UpdateControl.updateCustomResource(resource);
     }
 
-    public void createOrReplaceDeployment() throws FileNotFoundException {
+    public void createOrReplaceDeployment() throws IOException {
         String deploymentYamlPath = "stresstest-deploy.yaml";
-        ClassLoader classloader = Thread.currentThread().getContextClassLoader();
-        InputStream yamlInputStream = classloader.getResourceAsStream(deploymentYamlPath);
-
-        Deployment aDeployment = kubernetesClient.apps().deployments().load(yamlInputStream).get();
-        Deployment createdDeployment = kubernetesClient.apps().deployments().inNamespace(aDeployment.getMetadata().getNamespace()).createOrReplace(aDeployment);
-        log.info("Created deployment: {}", deploymentYamlPath);
+        try (InputStream yamlInputStream = getClass().getResourceAsStream(deploymentYamlPath)) {
+            Deployment aDeployment = kubernetesClient.apps().deployments().load(yamlInputStream).get();
+            Deployment createdDeployment = kubernetesClient.apps().deployments().inNamespace(aDeployment.getMetadata().getNamespace()).createOrReplace(aDeployment);
+            log.info("Created deployment: {}", deploymentYamlPath);
+        } catch (IOException ex) {
+            throw ex;
+        }
     }
 }
