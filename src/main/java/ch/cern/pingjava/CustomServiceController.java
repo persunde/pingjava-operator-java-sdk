@@ -63,6 +63,7 @@ public class CustomServiceController implements ResourceController<CustomService
                 .addToLabels("testLabel", resource.getSpec().getLabel())
                 .endMetadata()
                 .withSpec(serviceSpec)
+                .withStatus(status)
                 .done();
         try {
             createOrReplaceDeployment();

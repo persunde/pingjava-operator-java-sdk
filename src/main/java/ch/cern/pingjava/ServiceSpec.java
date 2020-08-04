@@ -4,7 +4,7 @@ public class ServiceSpec {
 
     private String name;
     private String label;
-    private int counter;
+    private int size;
 
     public String getName() {
         return name;
@@ -20,5 +20,13 @@ public class ServiceSpec {
 
     public void setLabel(String label) {
         this.label = label;
+    }
+
+    public int getSize() {
+        return size;
+    }
+
+    public void setSize(int size) {
+        this.size = size;
     }
 }
