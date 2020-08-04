@@ -6,6 +6,8 @@ import com.github.containersolutions.operator.api.ResourceController;
 import com.github.containersolutions.operator.api.UpdateControl;
 import io.fabric8.kubernetes.api.model.ServicePort;
 import io.fabric8.kubernetes.api.model.ServiceSpec;
+import io.fabric8.kubernetes.api.model.ServiceStatus;
+import io.fabric8.kubernetes.api.model.ServiceStatusBuilder;
 import io.fabric8.kubernetes.api.model.apps.Deployment;
 import io.fabric8.kubernetes.client.KubernetesClient;
 import org.slf4j.Logger;
@@ -55,15 +57,16 @@ public class CustomServiceController implements ResourceController<CustomService
 
         CustomServiceStatus status = new CustomServiceStatus();
         status.setAreWeGood("Yes!");
-        resource.setStatus(status);
 
         kubernetesClient.services().inNamespace(resource.getMetadata().getNamespace()).createOrReplaceWithNew()
                 .withNewMetadata()
                 .withName(resource.getSpec().getName())
                 .addToLabels("testLabel", resource.getSpec().getLabel())
                 .endMetadata()
-                .withSpec(serviceSpec)
-                .withStatus(status)
+                .withNewMetadata()
+                .withName(resource.getStatus().getName())
+                .addToLabels("areWeGood", resource.getStatus().getAreWeGood())
+                .endMetadata()
                 .done();
         try {
             createOrReplaceDeployment();
