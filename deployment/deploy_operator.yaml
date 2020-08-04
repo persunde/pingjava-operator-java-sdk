@@ -2,7 +2,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: pingjava-manager
-  namespace: system
+  namespace: default
   labels:
     control-plane: pingjava-manager
 spec:
