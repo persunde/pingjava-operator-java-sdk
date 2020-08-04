@@ -8,16 +8,14 @@ public class CustomServiceStatus extends ServiceStatus {
         super();
     }
 
-    /*
     private String areWeGood;
 
     public String getAreWeGood() {
         return areWeGood;
     }
-     */
 
     public void setAreWeGood(String areWeGood) {
         setAdditionalProperty("areWeGood", areWeGood);
-        //this.areWeGood = areWeGood;
+        this.areWeGood = areWeGood;
     }
 }
