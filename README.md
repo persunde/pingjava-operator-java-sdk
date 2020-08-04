@@ -34,3 +34,9 @@ You can set the maximum retry-attempts and the milliseconds between each interva
 ```java
 new GenericRetry().withLinearRetry().setMaxAttempts(maxAttempts).setInitialInterval(milliseconds);
 ```
+
+##  How to read the updates from the Operator -> posted to the CustomResource 
+Run this command to ses updates to the CustomResource that is updated by the Operator:
+```bash
+kubectl get CustomService/custom-service1 -o yaml
+```
