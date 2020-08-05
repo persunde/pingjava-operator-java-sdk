@@ -104,8 +104,13 @@ public class CustomServiceController implements ResourceController<CustomService
         String deploymentYamlPath = "stresstest-deploy.yaml";
         try (InputStream yamlInputStream = getClass().getResourceAsStream(deploymentYamlPath)) {
             Deployment aDeployment = kubernetesClient.apps().deployments().load(yamlInputStream).get();
-            Deployment createdDeployment = kubernetesClient.apps().deployments().inNamespace(aDeployment.getMetadata().getNamespace()).createOrReplace(aDeployment);
-            log.info("Created deployment: {}", deploymentYamlPath);
+            String nameSpace = aDeployment.getMetadata().getNamespace();
+            String name = aDeployment.getMetadata().getName();
+            Deployment currentDeploy = kubernetesClient.apps().deployments().inNamespace(nameSpace).withName(name).get();
+            if (currentDeploy != null) {
+                Deployment createdDeployment = kubernetesClient.apps().deployments().inNamespace(aDeployment.getMetadata().getNamespace()).createOrReplace(aDeployment);
+                log.info("Created deployment: {}", deploymentYamlPath);
+            }
         } catch (IOException ex) {
             log.error("createOrReplaceDeployment failed", ex);
             throw ex;
@@ -119,13 +124,13 @@ public class CustomServiceController implements ResourceController<CustomService
             String nameSpace = originalDeployment.getMetadata().getNamespace();
             String name = originalDeployment.getMetadata().getName();
             Deployment currentDeploy = kubernetesClient.apps().deployments().inNamespace(nameSpace).withName(name).get();
-            int newReplicasCount = currentDeploy.getSpec().getReplicas() + 1;
-
-            /* Updates the replica count */
-            Deployment updatedDeploy = kubernetesClient.apps().deployments().inNamespace(nameSpace)
-                    .withName(name).edit()
-                    .editSpec().withReplicas(newReplicasCount).endSpec().done();
-
+            if (currentDeploy != null && currentDeploy.getSpec() != null) {
+                int newReplicasCount = currentDeploy.getSpec().getReplicas() + 1;
+                /* Updates the replica count */
+                Deployment updatedDeploy = kubernetesClient.apps().deployments().inNamespace(nameSpace)
+                        .withName(name).edit()
+                        .editSpec().withReplicas(newReplicasCount).endSpec().done();
+            }
         } catch (IOException e) {
             e.printStackTrace();
             log.error("scaleUp failed", e);
@@ -140,13 +145,14 @@ public class CustomServiceController implements ResourceController<CustomService
             String nameSpace = originalDeployment.getMetadata().getNamespace();
             String name = originalDeployment.getMetadata().getName();
             Deployment currentDeploy = kubernetesClient.apps().deployments().inNamespace(nameSpace).withName(name).get();
-
-            int newReplicasCount = currentDeploy.getSpec().getReplicas() - 1;
-            if (newReplicasCount >= 0) {
-                /* Updates the replica count */
-                Deployment updatedDeploy = kubernetesClient.apps().deployments().inNamespace(nameSpace)
-                        .withName(name).edit()
-                        .editSpec().withReplicas(newReplicasCount).endSpec().done();
+            if (currentDeploy != null && currentDeploy.getSpec() != null) {
+                int newReplicasCount = currentDeploy.getSpec().getReplicas() - 1;
+                if (newReplicasCount >= 0) {
+                    /* Updates the replica count */
+                    Deployment updatedDeploy = kubernetesClient.apps().deployments().inNamespace(nameSpace)
+                            .withName(name).edit()
+                            .editSpec().withReplicas(newReplicasCount).endSpec().done();
+                }
             }
         } catch (IOException e) {
             e.printStackTrace();
