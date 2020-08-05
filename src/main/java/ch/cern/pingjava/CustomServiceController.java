@@ -88,8 +88,8 @@ public class CustomServiceController implements ResourceController<CustomService
 
         try {
             long latency = getLatencyMilliseconds();
-            int latencyScaleUpLimit = 700;
-            int latencyScaleDownLimit = 400;
+            int latencyScaleUpLimit = 900;
+            int latencyScaleDownLimit = 200;
             if (latency > latencyScaleUpLimit) {
                 scaleUp();
             } else if (latency < latencyScaleDownLimit) {
