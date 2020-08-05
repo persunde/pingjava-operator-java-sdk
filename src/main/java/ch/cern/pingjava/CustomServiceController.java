@@ -11,8 +11,9 @@ import io.fabric8.kubernetes.client.KubernetesClient;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.IOException;
-import java.io.InputStream;
+import java.io.*;
+import java.net.HttpURLConnection;
+import java.net.URL;
 import java.util.Collections;
 
 /**
@@ -64,6 +65,20 @@ public class CustomServiceController implements ResourceController<CustomService
         * TODO: call a K8S-Service for the Ping server and calculate the latency. Then scale up or down
         */
 
+        try {
+            long latency = getLatencyMilliseconds();
+            int latencyScaleUpLimit = 700;
+            int latencyScaleDownLimit = 400;
+            if (latency > latencyScaleUpLimit) {
+                scaleUp();
+            } else if (latency < latencyScaleDownLimit) {
+                scaleDown();
+            }
+        } catch (IOException e) {
+            e.printStackTrace();
+            log.error("getLatency | scaleUp | scaleDown failed", e);
+        }
+
         /*
         * TODO: remove this service, no need
         */
@@ -91,7 +106,78 @@ public class CustomServiceController implements ResourceController<CustomService
             Deployment createdDeployment = kubernetesClient.apps().deployments().inNamespace(aDeployment.getMetadata().getNamespace()).createOrReplace(aDeployment);
             log.info("Created deployment: {}", deploymentYamlPath);
         } catch (IOException ex) {
+            log.error("createOrReplaceDeployment failed", ex);
             throw ex;
         }
+    }
+
+    private void scaleUp() throws IOException {
+        String deploymentYamlPath = "stresstest-deploy.yaml";
+        try (InputStream yamlInputStream = getClass().getResourceAsStream(deploymentYamlPath)) {
+            Deployment originalDeployment = kubernetesClient.apps().deployments().load(yamlInputStream).get();
+            String nameSpace = originalDeployment.getMetadata().getNamespace();
+            String name = originalDeployment.getMetadata().getName();
+            Deployment currentDeploy = kubernetesClient.apps().deployments().inNamespace(nameSpace).withName(name).get();
+            int newReplicasCount = currentDeploy.getSpec().getReplicas() + 1;
+
+            /* Updates the replica count */
+            Deployment updatedDeploy = kubernetesClient.apps().deployments().inNamespace(nameSpace)
+                    .withName(name).edit()
+                    .editSpec().withReplicas(newReplicasCount).endSpec().done();
+
+        } catch (IOException e) {
+            e.printStackTrace();
+            log.error("scaleUp failed", e);
+            throw e;
+        }
+    }
+
+    private void scaleDown() throws IOException {
+        String deploymentYamlPath = "stresstest-deploy.yaml";
+        try (InputStream yamlInputStream = getClass().getResourceAsStream(deploymentYamlPath)) {
+            Deployment originalDeployment = kubernetesClient.apps().deployments().load(yamlInputStream).get();
+            String nameSpace = originalDeployment.getMetadata().getNamespace();
+            String name = originalDeployment.getMetadata().getName();
+            Deployment currentDeploy = kubernetesClient.apps().deployments().inNamespace(nameSpace).withName(name).get();
+
+            int newReplicasCount = currentDeploy.getSpec().getReplicas() - 1;
+            if (newReplicasCount >= 0) {
+                /* Updates the replica count */
+                Deployment updatedDeploy = kubernetesClient.apps().deployments().inNamespace(nameSpace)
+                        .withName(name).edit()
+                        .editSpec().withReplicas(newReplicasCount).endSpec().done();
+            }
+        } catch (IOException e) {
+            e.printStackTrace();
+            log.error("scaleDown failed", e);
+            throw e;
+        }
+    }
+
+    private long getLatencyMilliseconds() throws IOException {
+        String webserverServiceSERVICEHOST = System.getenv("WEBSERVER_SERVICE_SERVICE_HOST");
+        String webserverServiceSERVICEPORT = System.getenv("WEBSERVER_SERVICE_SERVICE_PORT");
+        String url = "http://" + webserverServiceSERVICEHOST + ":" + webserverServiceSERVICEPORT;
+
+        long start = System.currentTimeMillis();
+        String result = executeGet(url);
+        log.info("HTTP GET result :\n" + result + "\n------------\n");
+        long latency = System.currentTimeMillis() - start;
+
+        return latency;
+    }
+
+    private static String executeGet(String urlToRead) throws IOException {
+        StringBuilder result = new StringBuilder();
+        URL url = new URL(urlToRead);
+        HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+        conn.setRequestMethod("GET");
+        BufferedReader rd = new BufferedReader(new InputStreamReader(conn.getInputStream()));
+        String line;
+        while ((line = rd.readLine()) != null) {
+            result.append(line);
+        }
+        rd.close();
+        return result.toString();
     }
 }
