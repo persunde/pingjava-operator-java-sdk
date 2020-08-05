@@ -120,6 +120,7 @@ public class CustomServiceController implements ResourceController<CustomService
     }
 
     private void scaleUp() throws IOException {
+        /* TODO: update the CR instead of scaling automatically */
         String deploymentYamlPath = "stresstest-deploy.yaml";
         try (InputStream yamlInputStream = getClass().getResourceAsStream(deploymentYamlPath)) {
             Deployment originalDeployment = kubernetesClient.apps().deployments().load(yamlInputStream).get();
@@ -141,6 +142,7 @@ public class CustomServiceController implements ResourceController<CustomService
     }
 
     private void scaleDown() throws IOException {
+        /* TODO: update the CR instead of scaling automatically */
         String deploymentYamlPath = "stresstest-deploy.yaml";
         try (InputStream yamlInputStream = getClass().getResourceAsStream(deploymentYamlPath)) {
             Deployment originalDeployment = kubernetesClient.apps().deployments().load(yamlInputStream).get();
