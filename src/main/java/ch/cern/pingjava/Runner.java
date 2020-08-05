@@ -27,9 +27,27 @@ public class Runner {
         Config config = new ConfigBuilder().withNamespace(null).build();
         KubernetesClient client = new DefaultKubernetesClient(config);
         Operator operator = new Operator(client);
-        GenericRetry retry = GenericRetry.every10second10TimesRetry(); /* retries every 10 second, and max 10 times, you can customize this yourself if you want */
+        GenericRetry retry = GenericRetry.every10second10TimesRetry(); /* On Failure: retries every 10 second, and max 10 times, you can customize this yourself if you want */
 
-        operator.registerControllerForAllNamespaces(new CustomServiceController(client), retry);
+        CustomServiceController controller = new CustomServiceController(client);
+        operator.registerControllerForAllNamespaces(controller, retry);
+
+        /*
+        * New thread that queries the Webservers deployed to the cluster in a 5 sec interval.
+        * Calculates the latency and scales up/down or keep as is, depending on the latency.
+        */
+        Runnable runnable = () -> {
+            try {
+                while (true) {
+                    Thread.sleep(5 * 1000);
+                    controller.checkStatus();
+                }
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
+        };
+        Thread t = new Thread(runnable);
+        t.start();
 
         new FtBasic(
                 new TkFork(new FkRegex("/health", "ALL GOOD!")), 8080

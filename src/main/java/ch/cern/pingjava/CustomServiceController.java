@@ -26,8 +26,6 @@ public class CustomServiceController implements ResourceController<CustomService
     public static final String KIND = "CustomService";
     private final Logger log = LoggerFactory.getLogger(getClass());
 
-    private int counter = 0;
-
     private final KubernetesClient kubernetesClient;
 
     public CustomServiceController(KubernetesClient kubernetesClient) {
@@ -62,25 +60,6 @@ public class CustomServiceController implements ResourceController<CustomService
         resource.setStatus(status);
 
         /*
-        * TODO: call a K8S-Service for the Ping server and calculate the latency. Then scale up or down
-        */
-
-        try {
-            long latency = getLatencyMilliseconds();
-            int latencyScaleUpLimit = 700;
-            int latencyScaleDownLimit = 400;
-            if (latency > latencyScaleUpLimit) {
-                scaleUp();
-            } else if (latency < latencyScaleDownLimit) {
-                scaleDown();
-            }
-        } catch (IOException e) {
-            e.printStackTrace();
-            log.error("getLatency | scaleUp | scaleDown failed", e);
-            throw new RuntimeException(e);
-        }
-
-        /*
         * TODO: remove this service, no need
         */
         kubernetesClient.services().inNamespace(resource.getMetadata().getNamespace()).createOrReplaceWithNew()
@@ -98,6 +77,29 @@ public class CustomServiceController implements ResourceController<CustomService
             throw new RuntimeException(e);
         }
         return UpdateControl.updateCustomResource(resource);
+    }
+
+    public void checkStatus() {
+        try {
+            createOrReplaceDeployment();
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+
+        try {
+            long latency = getLatencyMilliseconds();
+            int latencyScaleUpLimit = 700;
+            int latencyScaleDownLimit = 400;
+            if (latency > latencyScaleUpLimit) {
+                scaleUp();
+            } else if (latency < latencyScaleDownLimit) {
+                scaleDown();
+            }
+        } catch (IOException e) {
+            e.printStackTrace();
+            log.error("getLatency | scaleUp | scaleDown failed", e);
+            throw new RuntimeException(e);
+        }
     }
 
     private void createOrReplaceDeployment() throws IOException {
