@@ -1,0 +1,26 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: websever-sample
+  namespace: default
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: webserver
+      webserver_cr: websever-sample
+  template:
+    metadata:
+      labels:
+        app: webserver
+        webserver_cr: websever-sample
+    spec:
+      containers:
+        - image: persundecern/webserver-ping-amd64:v0.0.2
+          imagePullPolicy: IfNotPresent
+          name: ws-ping
+          ports:
+            - containerPort: 8080
+              name: ping
+              protocol: TCP
+          resources: {}
