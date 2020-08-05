@@ -24,7 +24,7 @@ import java.util.Collections;
 public class CustomServiceController implements ResourceController<CustomService> {
 
     public static final String KIND = "CustomService";
-    private final static Logger log = LoggerFactory.getLogger(CustomServiceController.class);
+    private final Logger log = LoggerFactory.getLogger(getClass());
 
     private int counter = 0;
 
@@ -77,6 +77,7 @@ public class CustomServiceController implements ResourceController<CustomService
         } catch (IOException e) {
             e.printStackTrace();
             log.error("getLatency | scaleUp | scaleDown failed", e);
+            throw new RuntimeException(e);
         }
 
         /*
@@ -167,7 +168,7 @@ public class CustomServiceController implements ResourceController<CustomService
         return latency;
     }
 
-    private static String executeGet(String urlToRead) throws IOException {
+    private String executeGet(String urlToRead) throws IOException {
         StringBuilder result = new StringBuilder();
         URL url = new URL(urlToRead);
         HttpURLConnection conn = (HttpURLConnection) url.openConnection();
