@@ -107,7 +107,7 @@ public class CustomServiceController implements ResourceController<CustomService
             String nameSpace = aDeployment.getMetadata().getNamespace();
             String name = aDeployment.getMetadata().getName();
             Deployment currentDeploy = kubernetesClient.apps().deployments().inNamespace(nameSpace).withName(name).get();
-            if (currentDeploy != null) {
+            if (currentDeploy == null) {
                 Deployment createdDeployment = kubernetesClient.apps().deployments().inNamespace(aDeployment.getMetadata().getNamespace()).createOrReplace(aDeployment);
                 log.info("Created deployment: {}", deploymentYamlPath);
             }
