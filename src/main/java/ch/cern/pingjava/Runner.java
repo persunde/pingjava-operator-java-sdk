@@ -37,7 +37,7 @@ public class Runner {
         * Calculates the latency and scales up/down or keep as is, depending on the latency.
         * NOTE: Probably not thread safe, but it is ok for this Proof-of-Concept
         *
-        * This will/can be replaced with a new upcoming feature in the Java-Operatpr-SDK
+        * This will/can be replaced with a new upcoming feature in the Java-Operator-SDK
         */
         Runnable runnable = () -> {
             try {
