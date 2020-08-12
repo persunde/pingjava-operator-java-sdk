@@ -5,3 +5,4 @@ metadata:
 spec:
   name: testservice1
   label: testlabel
+  size: 0

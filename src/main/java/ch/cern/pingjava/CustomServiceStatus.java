@@ -4,7 +4,6 @@ public class CustomServiceStatus {
 
     private String areWeGood;
     private String name;
-    private String replicas;
 
     public String getName() {
         return name;
@@ -21,11 +20,4 @@ public class CustomServiceStatus {
     public void setAreWeGood(String areWeGood) {
         this.areWeGood = areWeGood;
     }
-
-    public String getReplicas() {
-        return replicas;
-    }
-
-    public void setReplicas(String replicas) { this.replicas = replicas; }
-
 }

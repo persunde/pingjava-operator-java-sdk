@@ -1,5 +1,6 @@
 package ch.cern.pingjava;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.github.containersolutions.operator.api.Context;
 import com.github.containersolutions.operator.api.Controller;
 import com.github.containersolutions.operator.api.ResourceController;
@@ -22,6 +23,7 @@ import java.io.*;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.Map;
 
 /**
@@ -48,6 +50,17 @@ public class CustomServiceController implements ResourceController<CustomService
         return true;
     }
 
+    /**
+     * Main Operator function. It is called by the Java--Operator-SDK framework whenever a change happens to
+     * the CustomResource that is beeing watched. You are supposed to put the logic in here.
+     * I have made it so that it scales the deployment up or down, based on the "size" that is defined in the
+     * CustomResource, this is done with the class ServiceSpec, that has the spec attributes: "name", "label" and "size"
+     * The size is changed by another thread, that updates the CustomResource with the new size number, thus causing
+     * an event to happen and this function is called becasue of the change to the CR.
+     * @param resource
+     * @param context
+     * @return
+     */
     @Override
     public UpdateControl<CustomService> createOrUpdateResource(CustomService resource, Context<CustomService> context) {
         log.info("Execution createOrUpdateResource for: {}", resource.getMetadata().getName());
@@ -67,11 +80,14 @@ public class CustomServiceController implements ResourceController<CustomService
         status.setAreWeGood("Yes!");
         resource.setStatus(status);
 
-        String resourceReplicas = status.getReplicas();
-        log.info("99999 Number of replicas in resource: {}", resourceReplicas);
-        /**
-         * TODO: Check that the number of resourceReplicas matches current replicas in deployment
-         */
+        int resourceSize = resource.getSpec().getSize();
+        log.info("Number of replicas in spec: {}", resourceSize);
+        try {
+            /* Updates the deployment with the replica size as defined by the CR */
+            updateDeploymentReplicaCount(resourceSize);
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
 
         /*
         * TODO: remove this service, no need
@@ -94,30 +110,39 @@ public class CustomServiceController implements ResourceController<CustomService
     }
 
     private static int testnum = 10;
+
+    /**
+     * Called by a looping thread. It checks the latency of the Webservers and changes the "size" attribute
+     * in the CustomResource. This causes an event to happen, and createOrUpdateResource() is called by the framework
+     * because of this update to the CR.
+     */
     public void checkStatus() {
         String crdYamlPath = "crd.yaml";
         try (InputStream yamlInputStream = getClass().getResourceAsStream(crdYamlPath)) {
             CustomResourceDefinition customResourceDefinition = kubernetesClient.customResourceDefinitions().load(yamlInputStream).get();
             CustomResourceDefinitionContext customResourceDefinitionContext = CustomResourceDefinitionContext.fromCrd(customResourceDefinition);
-
-            Map<String, Object> customResourceObject = kubernetesClient.customResource(customResourceDefinitionContext).get("default", "customservices.sample.javaoperatorsdk");
-            Gson gson = new Gson();
-            String json = gson.toJson(customResourceObject);
+            Map<String, Object> customResourceObject = kubernetesClient.customResource(customResourceDefinitionContext).get("default", "custom-service1"); /* Name is found in CustomService.yaml, can be dynamically fetched as wellm jsut lazy here */
             try {
                 long latency = getLatencyMilliseconds();
                 int latencyScaleUpLimit = 750;
                 int latencyScaleDownLimit = 150;
                 if (latency > latencyScaleUpLimit) {
-                    //scaleUp();
-                    // Update status
-                    Map<String, Object> result = kubernetesClient.customResource(customResourceDefinitionContext).updateStatus("replicas", Integer.toString(testnum++), json);
+                    /*scaleUp(); */
+                    testnum++;
                 } else if (latency < latencyScaleDownLimit) {
-                    //scaleDown();
+                    /*scaleDown();*/
                     if (testnum > 0) {
                         testnum--;
                     }
-                    Map<String, Object> result = kubernetesClient.customResource(customResourceDefinitionContext).updateStatus("replicas", Integer.toString(testnum), json);
                 }
+                Map<String, Object> status = (Map<String, Object>) customResourceObject.get("status");
+                status.put("replicas", testnum);
+                customResourceObject.put("status", status);
+
+                Map<String, Object> object = kubernetesClient.customResource(customResourceDefinitionContext).get("default", "custom-service1");
+                ((HashMap<String, Object>)object.get("spec")).put("size", Integer.toString(testnum));
+                ((HashMap<String, Object>)object.get("status")).put("replicas", Integer.toString(testnum));
+                object = kubernetesClient.customResource(customResourceDefinitionContext).edit("default", "custom-service1", new ObjectMapper().writeValueAsString(object));
             } catch (IOException e) {
                 e.printStackTrace();
                 log.error("getLatency | scaleUp | scaleDown failed", e);
@@ -126,10 +151,46 @@ public class CustomServiceController implements ResourceController<CustomService
         } catch (IOException e) {
             e.printStackTrace();
             log.error("getLatency | scaleUp | scaleDown failed", e);
-            throw new RuntimeException(e);
+            try {
+                Thread.sleep(5 * 1000);
+            } catch (InterruptedException interruptedException) {
+                interruptedException.printStackTrace();
+            }
         }
     }
 
+    /**
+     * Updates the deployment with the new replica count, if the new count is different from the current one
+     * @param newReplicasCount
+     * @throws IOException
+     */
+    private void updateDeploymentReplicaCount(int newReplicasCount) throws IOException {
+        String deploymentYamlPath = "stresstest-deploy.yaml";
+        try (InputStream yamlInputStream = getClass().getResourceAsStream(deploymentYamlPath)) {
+            Deployment originalDeployment = kubernetesClient.apps().deployments().load(yamlInputStream).get();
+            String nameSpace = originalDeployment.getMetadata().getNamespace();
+            String name = originalDeployment.getMetadata().getName();
+            Deployment currentDeploy = kubernetesClient.apps().deployments().inNamespace(nameSpace).withName(name).get();
+            if (    currentDeploy != null &&
+                    currentDeploy.getSpec() != null &&
+                    currentDeploy.getSpec().getReplicas() != newReplicasCount
+            ) {
+                /* Updates the replica count */
+                Deployment updatedDeploy = kubernetesClient.apps().deployments().inNamespace(nameSpace)
+                        .withName(name).edit()
+                        .editSpec().withReplicas(newReplicasCount).endSpec().done();
+            }
+        } catch (IOException e) {
+            e.printStackTrace();
+            log.error("scaleUp failed", e);
+            throw e;
+        }
+    }
+
+    /**
+     * Creates the deployment organized and monitored by this Operator
+     * @throws IOException
+     */
     private void createOrReplaceDeployment() throws IOException {
         String deploymentYamlPath = "stresstest-deploy.yaml";
         try (InputStream yamlInputStream = getClass().getResourceAsStream(deploymentYamlPath)) {
@@ -149,6 +210,12 @@ public class CustomServiceController implements ResourceController<CustomService
         }
     }
 
+    /**
+     * Creates the service for the deployment managed by the Operator
+     * NOTE: I think there is a bug here, that it does not work properly. Apply the Service before running the Operator to be sure.
+     * @param namespace
+     * @throws IOException
+     */
     private void createService(String namespace) throws IOException {
         String serviceYamlPath = "CustomService.yaml";
         try (InputStream yamlInputStream = getClass().getResourceAsStream(serviceYamlPath)) {
@@ -158,52 +225,13 @@ public class CustomServiceController implements ResourceController<CustomService
             log.info("Created Service: {}", serviceName);
         }
     }
-    private void scaleUp() throws IOException {
-        /* TODO: update the CR instead of scaling directly here */
-        String deploymentYamlPath = "stresstest-deploy.yaml";
-        try (InputStream yamlInputStream = getClass().getResourceAsStream(deploymentYamlPath)) {
-            Deployment originalDeployment = kubernetesClient.apps().deployments().load(yamlInputStream).get();
-            String nameSpace = originalDeployment.getMetadata().getNamespace();
-            String name = originalDeployment.getMetadata().getName();
-            Deployment currentDeploy = kubernetesClient.apps().deployments().inNamespace(nameSpace).withName(name).get();
-            if (currentDeploy != null && currentDeploy.getSpec() != null) {
-                int newReplicasCount = currentDeploy.getSpec().getReplicas() + 1;
-                /* Updates the replica count */
-                Deployment updatedDeploy = kubernetesClient.apps().deployments().inNamespace(nameSpace)
-                        .withName(name).edit()
-                        .editSpec().withReplicas(newReplicasCount).endSpec().done();
-            }
-        } catch (IOException e) {
-            e.printStackTrace();
-            log.error("scaleUp failed", e);
-            throw e;
-        }
-    }
 
-    private void scaleDown() throws IOException {
-        /* TODO: update the CR instead of scaling directly here */
-        String deploymentYamlPath = "stresstest-deploy.yaml";
-        try (InputStream yamlInputStream = getClass().getResourceAsStream(deploymentYamlPath)) {
-            Deployment originalDeployment = kubernetesClient.apps().deployments().load(yamlInputStream).get();
-            String nameSpace = originalDeployment.getMetadata().getNamespace();
-            String name = originalDeployment.getMetadata().getName();
-            Deployment currentDeploy = kubernetesClient.apps().deployments().inNamespace(nameSpace).withName(name).get();
-            if (currentDeploy != null && currentDeploy.getSpec() != null) {
-                int newReplicasCount = currentDeploy.getSpec().getReplicas() - 1;
-                if (newReplicasCount >= 0) {
-                    /* Updates the replica count */
-                    Deployment updatedDeploy = kubernetesClient.apps().deployments().inNamespace(nameSpace)
-                            .withName(name).edit()
-                            .editSpec().withReplicas(newReplicasCount).endSpec().done();
-                }
-            }
-        } catch (IOException e) {
-            e.printStackTrace();
-            log.error("scaleDown failed", e);
-            throw e;
-        }
-    }
-
+    /**
+     * Gets the latency from the webservers.
+     * NOTE: The webserver deployment must be deployed before this function is called. It is not handled by the operator as of now.
+     * @return The latency in milliseconds, should be between 0-1000, as the webservers are set to sleep between 0-10 seconds.
+     * @throws IOException
+     */
     private long getLatencyMilliseconds() throws IOException {
         String webserverServiceSERVICEHOST = System.getenv("WEBSERVER_SERVICE_SERVICE_HOST");
         String webserverServiceSERVICEPORT = System.getenv("WEBSERVER_SERVICE_SERVICE_PORT");
@@ -217,6 +245,12 @@ public class CustomServiceController implements ResourceController<CustomService
         return latency;
     }
 
+    /**
+     * Helper function for getLatencyMilliseconds(). Does the actual http GET call to the webserver(s).
+     * @param urlToRead
+     * @return
+     * @throws IOException
+     */
     private String executeGet(String urlToRead) throws IOException {
         StringBuilder result = new StringBuilder();
         URL url = new URL(urlToRead);
