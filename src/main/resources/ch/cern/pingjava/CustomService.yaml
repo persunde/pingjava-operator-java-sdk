@@ -5,5 +5,4 @@ metadata:
 spec:
   name: testservice1
   label: testlabel
-status:
-  replicas: 0
+  size: 0

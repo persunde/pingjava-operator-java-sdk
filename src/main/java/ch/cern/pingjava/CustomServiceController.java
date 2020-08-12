@@ -139,9 +139,12 @@ public class CustomServiceController implements ResourceController<CustomService
                 status.put("replicas", testnum);
                 customResourceObject.put("status", status);
 
+                /**
+                 * Updates the CustomResource with the new values, this is what will trigger the event that calls createOrUpdateResource()
+                 */
                 Map<String, Object> object = kubernetesClient.customResource(customResourceDefinitionContext).get("default", "custom-service1");
                 ((HashMap<String, Object>)object.get("spec")).put("size", Integer.toString(testnum));
-                ((HashMap<String, Object>)object.get("status")).put("replicas", Integer.toString(testnum));
+                /*((HashMap<String, Object>)object.get("status")).put("replicas", Integer.toString(testnum));*/
                 object = kubernetesClient.customResource(customResourceDefinitionContext).edit("default", "custom-service1", new ObjectMapper().writeValueAsString(object));
             } catch (IOException e) {
                 e.printStackTrace();
