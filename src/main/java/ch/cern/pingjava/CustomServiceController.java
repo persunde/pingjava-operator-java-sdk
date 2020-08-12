@@ -4,10 +4,17 @@ import com.github.containersolutions.operator.api.Context;
 import com.github.containersolutions.operator.api.Controller;
 import com.github.containersolutions.operator.api.ResourceController;
 import com.github.containersolutions.operator.api.UpdateControl;
+import com.google.gson.Gson;
+import io.fabric8.kubernetes.api.model.Service;
 import io.fabric8.kubernetes.api.model.ServicePort;
 import io.fabric8.kubernetes.api.model.ServiceSpec;
+import io.fabric8.kubernetes.api.model.apiextensions.CustomResourceDefinition;
+import io.fabric8.kubernetes.api.model.apiextensions.DoneableCustomResourceDefinition;
 import io.fabric8.kubernetes.api.model.apps.Deployment;
+import io.fabric8.kubernetes.client.CustomResource;
 import io.fabric8.kubernetes.client.KubernetesClient;
+import io.fabric8.kubernetes.client.dsl.Resource;
+import io.fabric8.kubernetes.client.dsl.base.CustomResourceDefinitionContext;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -15,6 +22,7 @@ import java.io.*;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.util.Collections;
+import java.util.Map;
 
 /**
  * A very simple sample controller that creates a service with a label.
@@ -59,6 +67,12 @@ public class CustomServiceController implements ResourceController<CustomService
         status.setAreWeGood("Yes!");
         resource.setStatus(status);
 
+        String resourceReplicas = status.getReplicas();
+        log.info("99999 Number of replicas in resource: {}", resourceReplicas);
+        /**
+         * TODO: Check that the number of resourceReplicas matches current replicas in deployment
+         */
+
         /*
         * TODO: remove this service, no need
         */
@@ -79,21 +93,35 @@ public class CustomServiceController implements ResourceController<CustomService
         return UpdateControl.updateCustomResource(resource);
     }
 
+    private static int testnum = 10;
     public void checkStatus() {
-        try {
-            createOrReplaceDeployment();
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
+        String crdYamlPath = "crd.yaml";
+        try (InputStream yamlInputStream = getClass().getResourceAsStream(crdYamlPath)) {
+            CustomResourceDefinition customResourceDefinition = kubernetesClient.customResourceDefinitions().load(yamlInputStream).get();
+            CustomResourceDefinitionContext customResourceDefinitionContext = CustomResourceDefinitionContext.fromCrd(customResourceDefinition);
 
-        try {
-            long latency = getLatencyMilliseconds();
-            int latencyScaleUpLimit = 900;
-            int latencyScaleDownLimit = 200;
-            if (latency > latencyScaleUpLimit) {
-                scaleUp();
-            } else if (latency < latencyScaleDownLimit) {
-                scaleDown();
+            Map<String, Object> customResourceObject = kubernetesClient.customResource(customResourceDefinitionContext).get("default", "customservices.sample.javaoperatorsdk");
+            Gson gson = new Gson();
+            String json = gson.toJson(customResourceObject);
+            try {
+                long latency = getLatencyMilliseconds();
+                int latencyScaleUpLimit = 800;
+                int latencyScaleDownLimit = 200;
+                if (latency > latencyScaleUpLimit) {
+                    //scaleUp();
+                    // Update status
+                    Map<String, Object> result = kubernetesClient.customResource(customResourceDefinitionContext).updateStatus("replicas", Integer.toString(testnum++), json);
+                } else if (latency < latencyScaleDownLimit) {
+                    //scaleDown();
+                    if (testnum > 0) {
+                        testnum--;
+                    }
+                    Map<String, Object> result = kubernetesClient.customResource(customResourceDefinitionContext).updateStatus("replicas", Integer.toString(testnum), json);
+                }
+            } catch (IOException e) {
+                e.printStackTrace();
+                log.error("getLatency | scaleUp | scaleDown failed", e);
+                throw new RuntimeException(e);
             }
         } catch (IOException e) {
             e.printStackTrace();
@@ -112,6 +140,8 @@ public class CustomServiceController implements ResourceController<CustomService
             if (currentDeploy == null) {
                 Deployment createdDeployment = kubernetesClient.apps().deployments().inNamespace(aDeployment.getMetadata().getNamespace()).createOrReplace(aDeployment);
                 log.info("Created deployment: {}", deploymentYamlPath);
+                /* Create a Service for the deployment as well */
+                createService(nameSpace);
             }
         } catch (IOException ex) {
             log.error("createOrReplaceDeployment failed", ex);
@@ -119,8 +149,17 @@ public class CustomServiceController implements ResourceController<CustomService
         }
     }
 
+    private void createService(String namespace) throws IOException {
+        String serviceYamlPath = "CustomService.yaml";
+        try (InputStream yamlInputStream = getClass().getResourceAsStream(serviceYamlPath)) {
+            Service aService = kubernetesClient.services().load(yamlInputStream).get();
+            Service createdSvc = kubernetesClient.services().inNamespace(namespace).createOrReplace(aService);
+            String serviceName = createdSvc.getMetadata().getName();
+            log.info("Created Service: {}", serviceName);
+        }
+    }
     private void scaleUp() throws IOException {
-        /* TODO: update the CR instead of scaling automatically */
+        /* TODO: update the CR instead of scaling directly here */
         String deploymentYamlPath = "stresstest-deploy.yaml";
         try (InputStream yamlInputStream = getClass().getResourceAsStream(deploymentYamlPath)) {
             Deployment originalDeployment = kubernetesClient.apps().deployments().load(yamlInputStream).get();
@@ -142,7 +181,7 @@ public class CustomServiceController implements ResourceController<CustomService
     }
 
     private void scaleDown() throws IOException {
-        /* TODO: update the CR instead of scaling automatically */
+        /* TODO: update the CR instead of scaling directly here */
         String deploymentYamlPath = "stresstest-deploy.yaml";
         try (InputStream yamlInputStream = getClass().getResourceAsStream(deploymentYamlPath)) {
             Deployment originalDeployment = kubernetesClient.apps().deployments().load(yamlInputStream).get();
