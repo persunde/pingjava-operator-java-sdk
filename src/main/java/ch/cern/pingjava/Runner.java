@@ -35,6 +35,9 @@ public class Runner {
         /*
         * New thread that queries the Webservers deployed to the cluster in a 5 sec interval.
         * Calculates the latency and scales up/down or keep as is, depending on the latency.
+        * NOTE: Probably not thread safe, but it is ok for this Proof-of-Concept
+        *
+        * This will/can be replaced with a new upcoming feature in the Java-Operatpr-SDK
         */
         Runnable runnable = () -> {
             try {

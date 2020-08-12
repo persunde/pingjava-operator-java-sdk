@@ -5,21 +5,20 @@ import com.github.containersolutions.operator.api.Context;
 import com.github.containersolutions.operator.api.Controller;
 import com.github.containersolutions.operator.api.ResourceController;
 import com.github.containersolutions.operator.api.UpdateControl;
-import com.google.gson.Gson;
 import io.fabric8.kubernetes.api.model.Service;
 import io.fabric8.kubernetes.api.model.ServicePort;
 import io.fabric8.kubernetes.api.model.ServiceSpec;
 import io.fabric8.kubernetes.api.model.apiextensions.CustomResourceDefinition;
-import io.fabric8.kubernetes.api.model.apiextensions.DoneableCustomResourceDefinition;
 import io.fabric8.kubernetes.api.model.apps.Deployment;
-import io.fabric8.kubernetes.client.CustomResource;
 import io.fabric8.kubernetes.client.KubernetesClient;
-import io.fabric8.kubernetes.client.dsl.Resource;
 import io.fabric8.kubernetes.client.dsl.base.CustomResourceDefinitionContext;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.*;
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.util.Collections;
@@ -127,10 +126,8 @@ public class CustomServiceController implements ResourceController<CustomService
                 int latencyScaleUpLimit = 750;
                 int latencyScaleDownLimit = 150;
                 if (latency > latencyScaleUpLimit) {
-                    /*scaleUp(); */
                     testnum++;
                 } else if (latency < latencyScaleDownLimit) {
-                    /*scaleDown();*/
                     if (testnum > 0) {
                         testnum--;
                     }
@@ -141,6 +138,9 @@ public class CustomServiceController implements ResourceController<CustomService
 
                 /**
                  * Updates the CustomResource with the new values, this is what will trigger the event that calls createOrUpdateResource()
+                 * NOTE: You can add a "typed" API, but I implemeted the dirty and quick typeless solution, see the two links for more info:
+                 *  https://github.com/fabric8io/kubernetes-client/blob/master/doc/CHEATSHEET.md#customresource-typed-api
+                 *  https://github.com/fabric8io/kubernetes-client/blob/master/doc/CHEATSHEET.md#customresource-typeless-api
                  */
                 Map<String, Object> object = kubernetesClient.customResource(customResourceDefinitionContext).get("default", "custom-service1");
                 ((HashMap<String, Object>)object.get("spec")).put("size", Integer.toString(testnum));
@@ -153,12 +153,7 @@ public class CustomServiceController implements ResourceController<CustomService
             }
         } catch (IOException e) {
             e.printStackTrace();
-            log.error("getLatency | scaleUp | scaleDown failed", e);
-            try {
-                Thread.sleep(5 * 1000);
-            } catch (InterruptedException interruptedException) {
-                interruptedException.printStackTrace();
-            }
+            log.error("checkStatus() failed", e);
         }
     }
 
