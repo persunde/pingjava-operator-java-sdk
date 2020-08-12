@@ -38,6 +38,7 @@ public class Runner {
         */
         Runnable runnable = () -> {
             try {
+                Thread.sleep(20 * 1000);
                 while (true) {
                     Thread.sleep(5 * 1000);
                     controller.checkStatus();
