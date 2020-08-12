@@ -105,8 +105,8 @@ public class CustomServiceController implements ResourceController<CustomService
             String json = gson.toJson(customResourceObject);
             try {
                 long latency = getLatencyMilliseconds();
-                int latencyScaleUpLimit = 800;
-                int latencyScaleDownLimit = 200;
+                int latencyScaleUpLimit = 750;
+                int latencyScaleDownLimit = 150;
                 if (latency > latencyScaleUpLimit) {
                     //scaleUp();
                     // Update status
