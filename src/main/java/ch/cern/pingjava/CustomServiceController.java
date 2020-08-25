@@ -6,8 +6,6 @@ import com.github.containersolutions.operator.api.Controller;
 import com.github.containersolutions.operator.api.ResourceController;
 import com.github.containersolutions.operator.api.UpdateControl;
 import io.fabric8.kubernetes.api.model.Service;
-import io.fabric8.kubernetes.api.model.ServicePort;
-import io.fabric8.kubernetes.api.model.ServiceSpec;
 import io.fabric8.kubernetes.api.model.apiextensions.CustomResourceDefinition;
 import io.fabric8.kubernetes.api.model.apps.Deployment;
 import io.fabric8.kubernetes.client.KubernetesClient;
@@ -21,7 +19,6 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.net.HttpURLConnection;
 import java.net.URL;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -53,21 +50,16 @@ public class CustomServiceController implements ResourceController<CustomService
      * Main Operator function. It is called by the Java--Operator-SDK framework whenever a change happens to
      * the CustomResource that is beeing watched. You are supposed to put the logic in here.
      * I have made it so that it scales the deployment up or down, based on the "size" that is defined in the
-     * CustomResource, this is done with the class ServiceSpec, that has the spec attributes: "name", "label" and "size"
+     * CustomResource that has the spec attributes: "name", "label" and "size"
      * The size is changed by another thread, that updates the CustomResource with the new size number, thus causing
-     * an event to happen and this function is called becasue of the change to the CR.
+     * an event to happen and this function is called because of the change to the CR.
      * @param resource
      * @param context
-     * @return
+     * @return the UpdateControl that updates the CR in the cluster with the changes made here
      */
     @Override
     public UpdateControl<CustomService> createOrUpdateResource(CustomService resource, Context<CustomService> context) {
         log.info("Execution createOrUpdateResource for: {}", resource.getMetadata().getName());
-
-        ServicePort servicePort = new ServicePort();
-        servicePort.setPort(8080);
-        ServiceSpec serviceSpec = new ServiceSpec();
-        serviceSpec.setPorts(Collections.singletonList(servicePort));
 
         CustomServiceStatus status = new CustomServiceStatus();
         CustomServiceStatus oldStatus = resource.getStatus();
@@ -88,16 +80,6 @@ public class CustomServiceController implements ResourceController<CustomService
             e.printStackTrace();
         }
 
-        /*
-        * TODO: remove this service, no need
-        */
-        kubernetesClient.services().inNamespace(resource.getMetadata().getNamespace()).createOrReplaceWithNew()
-                .withNewMetadata()
-                .withName(resource.getSpec().getName())
-                .addToLabels("testLabel", resource.getSpec().getLabel())
-                .endMetadata()
-                .withSpec(serviceSpec)
-                .done();
         try {
             createOrReplaceDeployment();
         } catch (IOException e) {
@@ -108,42 +90,42 @@ public class CustomServiceController implements ResourceController<CustomService
         return UpdateControl.updateCustomResource(resource);
     }
 
-    private static int testnum = 10;
-
     /**
      * Called by a looping thread. It checks the latency of the Webservers and changes the "size" attribute
      * in the CustomResource. This causes an event to happen, and createOrUpdateResource() is called by the framework
-     * because of this update to the CR.
+     * because of this change to the CR.
      */
     public void checkStatus() {
         String crdYamlPath = "crd.yaml";
         try (InputStream yamlInputStream = getClass().getResourceAsStream(crdYamlPath)) {
             CustomResourceDefinition customResourceDefinition = kubernetesClient.customResourceDefinitions().load(yamlInputStream).get();
             CustomResourceDefinitionContext customResourceDefinitionContext = CustomResourceDefinitionContext.fromCrd(customResourceDefinition);
-            Map<String, Object> customResourceObject = kubernetesClient.customResource(customResourceDefinitionContext).get("default", "custom-service1"); /* Name is found in CustomService.yaml, can be dynamically fetched as wellm jsut lazy here */
+            Map<String, Object> customResourceObject = kubernetesClient.customResource(customResourceDefinitionContext).get("default", "custom-service1"); /* Name is found in CustomService.yaml, can be dynamically fetched as well, just too lazy to implement the named one */
             try {
+                Map<String, Object> object = kubernetesClient.customResource(customResourceDefinitionContext).get("default", "custom-service1");
+                int newSize = (int) ((HashMap<String, Object>) object.get("spec")).getOrDefault("size", 0); /* Not yet tested */
+
                 long latency = getLatencyMilliseconds();
                 int latencyScaleUpLimit = 750;
                 int latencyScaleDownLimit = 150;
                 if (latency > latencyScaleUpLimit) {
-                    testnum++;
+                    newSize++;
                 } else if (latency < latencyScaleDownLimit) {
-                    if (testnum > 0) {
-                        testnum--;
+                    if (newSize > 0) {
+                        newSize--;
                     }
                 }
                 Map<String, Object> status = (Map<String, Object>) customResourceObject.get("status");
-                status.put("replicas", testnum);
+                status.put("replicas", newSize);
                 customResourceObject.put("status", status);
 
                 /**
                  * Updates the CustomResource with the new values, this is what will trigger the event that calls createOrUpdateResource()
-                 * NOTE: You can add a "typed" API, but I implemeted the dirty and quick typeless solution, see the two links for more info:
+                 * NOTE: You can add a "typed" API, but I implemented the dirty and quick typeless solution, see the two links for more info:
                  *  https://github.com/fabric8io/kubernetes-client/blob/master/doc/CHEATSHEET.md#customresource-typed-api
                  *  https://github.com/fabric8io/kubernetes-client/blob/master/doc/CHEATSHEET.md#customresource-typeless-api
                  */
-                Map<String, Object> object = kubernetesClient.customResource(customResourceDefinitionContext).get("default", "custom-service1");
-                ((HashMap<String, Object>)object.get("spec")).put("size", Integer.toString(testnum));
+                ((HashMap<String, Object>)object.get("spec")).put("size", Integer.toString(newSize));
                 /*((HashMap<String, Object>)object.get("status")).put("replicas", Integer.toString(testnum));*/
                 object = kubernetesClient.customResource(customResourceDefinitionContext).edit("default", "custom-service1", new ObjectMapper().writeValueAsString(object));
             } catch (IOException e) {
